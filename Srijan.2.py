@@ -1,0 +1,136 @@
+import tkinter as tk
+from tkinter import messagebox
+import matplotlib.pyplot as plt
+
+def simulate_fifo(page_seq, frame_count):
+    frames = []
+    states = []
+    fault_flags = []
+    faults = 0
+    queue = []
+    for page in page_seq:
+        if page in frames:
+            fault_flags.append(False)
+        else:
+            faults += 1
+            fault_flags.append(True)
+            if len(frames) < frame_count:
+                frames.append(page)
+                queue.append(page)
+            else:
+                old_page = queue.pop(0)
+                index = frames.index(old_page)
+                frames[index] = page
+                queue.append(page)
+        state_snapshot = frames.copy()
+        while len(state_snapshot) < frame_count:
+            state_snapshot.append('-')
+        states.append(state_snapshot)
+    return states, faults, fault_flags
+
+def simulate_lru(page_seq, frame_count):
+    frames = []
+    states = []
+    fault_flags = []
+    faults = 0
+    usage_order = []
+    for page in page_seq:
+        if page in frames:
+            fault_flags.append(False)
+            usage_order.remove(page)
+            usage_order.append(page)
+        else:
+            faults += 1
+            fault_flags.append(True)
+            if len(frames) < frame_count:
+                frames.append(page)
+                usage_order.append(page)
+            else:
+                lru_page = usage_order.pop(0)
+                index = frames.index(lru_page)
+                frames[index] = page
+                usage_order.append(page)
+        state_snapshot = frames.copy()
+        while len(state_snapshot) < frame_count:
+            state_snapshot.append('-')
+        states.append(state_snapshot)
+    return states, faults, fault_flags
+
+def plot_paging_simulation(states, page_seq, fault_flags, algorithm_name, total_faults, frame_count):
+    num_steps = len(page_seq)
+    fig, ax = plt.subplots(figsize=(num_steps * 0.7, frame_count * 0.7 + 2))
+    ax.axis('off')
+    table_data = []
+    for r in range(frame_count):
+        row = []
+        for state in states:
+            row.append(state[r])
+        table_data.append(row)
+    col_labels = [f"{p}\n{'Fault' if fault_flags[i] else ''}".strip() 
+                  for i, p in enumerate(page_seq)]
+    row_labels = [f"Frame {i+1}" for i in range(frame_count)]
+    the_table = ax.table(cellText=table_data, colLabels=col_labels, rowLabels=row_labels, 
+                         loc='center', cellLoc='center')
+    the_table.auto_set_font_size(False)
+    the_table.set_fontsize(10)
+    the_table.scale(1.2, 1.2)
+    for col in range(num_steps):
+        if fault_flags[col]:
+            for row in range(frame_count):
+                cell = the_table[(row, col)]
+                cell.set_facecolor('#FF9999')
+    plt.title(f"{algorithm_name} Paging Simulation\nTotal Page Faults: {total_faults}", pad=20)
+    plt.show()
+
+class PagingApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Dynamic Memory Management Visualizer")
+        self.page_seq_label = tk.Label(root, text="Enter page reference string (comma separated):")
+        self.page_seq_label.pack()
+        self.page_seq_entry = tk.Entry(root, width=50)
+        self.page_seq_entry.pack()
+        self.frame_count_label = tk.Label(root, text="Enter number of frames:")
+        self.frame_count_label.pack()
+        self.frame_count_entry = tk.Entry(root, width=50)
+        self.frame_count_entry.pack()
+        self.algo_label = tk.Label(root, text="Choose replacement algorithm (FIFO or LRU):")
+        self.algo_label.pack()
+        self.algo_entry = tk.Entry(root, width=50)
+        self.algo_entry.pack()
+        self.run_button = tk.Button(root, text="Run Simulation", command=self.run_simulation)
+        self.run_button.pack()
+
+    def run_simulation(self):
+        page_seq_str = self.page_seq_entry.get()
+        frame_count_str = self.frame_count_entry.get()
+        algo_choice = self.algo_entry.get().strip().lower()
+        try:
+            page_seq = [int(x.strip()) for x in page_seq_str.split(',')]
+        except:
+            messagebox.showerror("Invalid Input", "Invalid page reference string. Please enter a valid sequence.")
+            return
+        try:
+            frame_count = int(frame_count_str)
+        except:
+            messagebox.showerror("Invalid Input", "Invalid number of frames. Please enter a valid number.")
+            return
+        if algo_choice == "fifo":
+            states, faults, fault_flags = simulate_fifo(page_seq, frame_count)
+            algo_name = "FIFO"
+        elif algo_choice == "lru":
+            states, faults, fault_flags = simulate_lru(page_seq, frame_count)
+            algo_name = "LRU"
+        else:
+            messagebox.showerror("Invalid Input", "Invalid algorithm choice. Please enter either 'FIFO' or 'LRU'.")
+            return
+        messagebox.showinfo("Simulation Complete", f"{algo_name} Paging Simulation complete.\nTotal Page Faults: {faults}")
+        plot_paging_simulation(states, page_seq, fault_flags, algo_name, faults, frame_count)
+
+def main():
+    root = tk.Tk()
+    app = PagingApp(root)
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
